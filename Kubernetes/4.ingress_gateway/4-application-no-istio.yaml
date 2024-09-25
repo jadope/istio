@@ -1,0 +1,174 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mocksserver
+  labels:
+    app: mocksserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mocksserver
+  template:
+    metadata:
+      labels:
+        app: mocksserver
+    spec:
+      containers:
+      - name: mocksserver
+        image: mocksserver/main
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3100
+        - containerPort: 3110
+        volumeMounts:
+        - name: mocks-volume
+          mountPath: /input/mocks
+          readOnly: true
+        - name: config-volume
+          mountPath: /input/mocks.config.js
+          readOnly: true
+        env:
+        - name: MOCKS_PATH
+          value: /input
+        command: ["npm", "start"]
+      volumes:
+      - name: mocks-volume
+        hostPath:
+          path: /minikube/shared/server-mock/mocks
+          type: Directory
+      - name: config-volume
+        hostPath:
+          path: /minikube/shared/server-mock/mocks.config.js
+          type: File
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-gio
+  labels:
+    app: bff-gio
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: bff
+  template:
+    metadata:
+      labels:
+        app: bff
+        version: bodge
+
+    spec:
+      containers:
+      - name: bff
+        image: gporras/goty-bsf:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 42000
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: prod
+        - name: GAMES_HOST
+          value: http://service-mocksserver:3100
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goty-front
+  labels:
+    app: goty-front
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goty-front
+  template:
+    metadata:
+      labels:
+        app: goty-front
+    spec:
+      containers:
+      - name: goty-front
+        image: gporras/goty-front:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        env:
+        - name: URL
+          value: http://192.168.49.2:30002 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-mine
+  labels:
+    app: bff-mine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bff
+  template:
+    metadata:
+      labels:
+        app: bff
+        version: canary
+    spec:
+      containers:
+      - name: bff
+        image: jad0pe/bff:2.0
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 42000
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: prod
+        - name: GAMES_HOST
+          value: http://service-mocksserver:3100/api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-mocksserver
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: mocksserver
+  ports:
+  - name: http
+    port: 3100
+    targetPort: 3100
+  - name: http-1
+    port: 3110
+    targetPort: 3110
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-goty-front
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: goty-front
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-bff
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: bff
+  ports:
+  - name: http
+    port: 5001
+    targetPort: 42000
+#Se depliega un cluster con ambas app donde se congrega en un solo servicio.

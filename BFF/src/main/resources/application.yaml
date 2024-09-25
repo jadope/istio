@@ -1,0 +1,13 @@
+server:
+  port: 42000
+spring:
+  application:
+    name: "BFF"
+  profiles:
+    include: null
+adapter:
+  restconsumer:
+    backedBaseUrl: ${GAMES_HOST:http://localhost:3100/api}
+    products: "/products"
+    product: "/product/{id}"
+    similars: "/product/{id}/similars"
